@@ -11,7 +11,7 @@ plugins {
     id("com.android.library") version "9.2.1" apply false
     id("org.jetbrains.kotlin.plugin.serialization") version "2.3.10" apply false
     id("org.jetbrains.kotlin.plugin.compose") version "2.3.10" apply false
-    id("org.sonarqube") version "7.3.0.8198"
+    id("org.sonarqube") version "7.3.1.8318"
 }
 
 sonarqube {
