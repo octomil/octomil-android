@@ -47,7 +47,7 @@ jobs:
         # lets `assembleDebug` here hit cache entries populated by ci.yml's
         # `test` job on the same SHA. If you bump the version here, bump it
         # in ci.yml too or you'll silently lose cross-workflow cache reuse.
-        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
         with:
           # PR/cron CodeQL runs never write the cache — only ci.yml on main does.
           cache-read-only: true
