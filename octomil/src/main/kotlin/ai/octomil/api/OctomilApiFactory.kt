@@ -156,7 +156,9 @@ object OctomilApiFactory {
         HttpLoggingInterceptor { message ->
             Timber.tag("Octomil-HTTP").d(message)
         }.apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = HttpLoggingInterceptor.Level.BASIC
+            redactHeader("Authorization")
+            redactHeader("X-Org-Id")
         }
 
     /**
@@ -171,10 +173,15 @@ object OctomilApiFactory {
         baseDelayMs: Long,
     ): Interceptor = Interceptor { chain ->
         val request = chain.request()
+        val limit = if (request.method in IDEMPOTENT_METHODS) maxRetries else 0
         var lastException: IOException? = null
         var lastResponse: Response? = null
 
-        for (attempt in 0..maxRetries) {
+        for (attempt in 0..limit) {
+            if (chain.call().isCanceled()) {
+                lastResponse?.close()
+                throw IOException("Canceled")
+            }
             try {
                 // Close the previous response body before retrying
                 lastResponse?.close()
@@ -182,22 +189,22 @@ object OctomilApiFactory {
 
                 val response = chain.proceed(request)
 
-                if (!isRetryableStatusCode(response.code) || attempt == maxRetries) {
+                if (!isRetryableStatusCode(response.code) || attempt == limit) {
                     return@Interceptor response
                 }
 
                 // Determine delay: prefer Retry-After header, fall back to exponential backoff
                 val delayMs = getRetryDelay(response, attempt, baseDelayMs)
-                Timber.d("Retryable HTTP ${response.code}, attempt ${attempt + 1}/$maxRetries, delay ${delayMs}ms")
+                Timber.d("Retryable HTTP ${response.code}, attempt ${attempt + 1}/$limit, delay ${delayMs}ms")
                 lastResponse = response
                 Thread.sleep(delayMs)
             } catch (e: IOException) {
                 lastException = e
-                if (attempt == maxRetries) {
+                if (attempt == limit) {
                     throw e
                 }
                 val delayMs = computeBackoffDelay(attempt, baseDelayMs)
-                Timber.d("IOException on attempt ${attempt + 1}/$maxRetries, delay ${delayMs}ms: ${e.message}")
+                Timber.d("IOException on attempt ${attempt + 1}/$limit, delay ${delayMs}ms: ${e.message}")
                 Thread.sleep(delayMs)
             }
         }
@@ -222,6 +229,9 @@ object OctomilApiFactory {
         return builder.build()
     }
 
+    private val IDEMPOTENT_METHODS = setOf("GET", "HEAD", "PUT", "DELETE", "OPTIONS")
+    private const val MAX_RETRY_AFTER_SECONDS = 30L
+
     private fun isRetryableStatusCode(code: Int): Boolean =
         code == 429 || code == 500 || code == 502 || code == 503 || code == 504
 
@@ -229,7 +239,7 @@ object OctomilApiFactory {
         // Check for Retry-After header (seconds)
         val retryAfter = response.header("Retry-After")?.toLongOrNull()
         if (retryAfter != null && retryAfter > 0) {
-            return retryAfter * 1000
+            return minOf(retryAfter, MAX_RETRY_AFTER_SECONDS) * 1000
         }
         return computeBackoffDelay(attempt, baseDelayMs)
     }
