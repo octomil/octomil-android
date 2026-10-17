@@ -114,8 +114,19 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Generate runtime read token
+        id: runtime-token
+        uses: actions/create-github-app-token@a8d616148505b5069dccd32f177bb87d7f39123b # v3.0.0
+        with:
+          app-id: ${{ secrets.VERSION_BOT_APP_ID }}
+          private-key: ${{ secrets.VERSION_BOT_PRIVATE_KEY }}
+          owner: octomil
+          repositories: octomil-runtime
+          permission-contents: read
+
       - name: Build release AAR
         env:
+          GH_TOKEN: ${{ steps.runtime-token.outputs.token }}
           INCLUDE_EXTERNAL_RUNTIMES: ${{ github.event_name == 'workflow_dispatch' && inputs.include_external_runtimes || 'false' }}
         run: |
           # Release builds run in fresh checkouts; disabling config cache avoids stale optional-runtime dependency graphs.
@@ -136,6 +147,11 @@ jobs:
             exit 1
           fi
           echo "AAR size: $(du -h "${AAR_PATH}" | cut -f1)"
+
+      - name: Verify runtime is bundled in AAR
+        run: |
+          unzip -l octomil/build/outputs/aar/octomil-release.aar | grep -q 'jni/.*/liboctomil-runtime\.so' \
+            || { echo "::error::liboctomil-runtime.so missing from AAR"; exit 1; }
 
       - name: Generate subject hash
         id: hash

@@ -1,5 +1,6 @@
 package ai.octomil.runtime.routing
 
+import ai.octomil.api.OctomilHttp
 import ai.octomil.errors.OctomilErrorCode
 import ai.octomil.errors.fromHttpStatus
 import ai.octomil.errors.OctomilException
@@ -386,7 +387,7 @@ internal class CloudModelRuntime(
     companion object {
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
-        fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
+        fun defaultHttpClient(): OkHttpClient = OctomilHttp.newBuilder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(120, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)

@@ -1,5 +1,6 @@
 package ai.octomil.client
 
+import ai.octomil.api.OctomilHttp
 import ai.octomil.errors.OctomilErrorCode
 import ai.octomil.errors.fromHttpStatus
 import ai.octomil.errors.OctomilException
@@ -126,7 +127,7 @@ class RoutingClient(private val config: RoutingConfig) {
         explicitNulls = false
     }
 
-    private val httpClient = OkHttpClient.Builder()
+    private val httpClient = OctomilHttp.newBuilder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
         .build()

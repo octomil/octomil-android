@@ -10,6 +10,7 @@ import okhttp3.Request
 import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 /**
@@ -252,6 +253,10 @@ class PairingManager(
             deployment.resources?.size ?: 0,
         )
 
+        requireSafeSegment(deployment.modelName, "model name")
+        requireSafeSegment(deployment.modelVersion, "model version")
+        deployment.resources?.forEach { requireSafeSegment(it.filename, "resource filename") }
+
         val resources = deployment.resources
         if (!resources.isNullOrEmpty()) {
             // Multi-resource download
@@ -294,6 +299,7 @@ class PairingManager(
     ): DeploymentResult {
         val sorted = resources.sortedBy { it.loadOrder }
         val modelDir = File(modelPersistDir, "${deployment.modelName}/${deployment.modelVersion}")
+        requireUnder(modelPersistDir, modelDir)
         modelDir.mkdirs()
 
         val downloadedFiles = mutableListOf<File>()
@@ -308,7 +314,8 @@ class PairingManager(
                 )
 
                 val targetFile = File(modelDir, resource.filename)
-                downloadFile(resource.uri, targetFile)
+                requireUnder(modelDir, targetFile)
+                downloadFile(resource.uri, targetFile, resource.checksumSha256)
                 downloadedFiles.add(targetFile)
                 totalBytesDownloaded += targetFile.length()
 
@@ -350,42 +357,78 @@ class PairingManager(
     /**
      * Download a single file from a URL to the specified target path.
      */
-    internal fun downloadFile(url: String, target: File) {
+    internal fun downloadFile(url: String, target: File, expectedSha256: String? = null) {
         val request = Request.Builder()
             .url(url)
             .build()
 
-        val response = downloadClient.newCall(request).execute()
+        downloadClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw PairingException(
+                    "Resource download failed: HTTP ${response.code} for ${target.name}",
+                    PairingException.ErrorCode.DOWNLOAD_FAILED,
+                )
+            }
 
-        if (!response.isSuccessful) {
+            val body = response.body
+                ?: throw PairingException(
+                    "Empty response body downloading ${target.name}",
+                    PairingException.ErrorCode.DOWNLOAD_FAILED,
+                )
+
+            val digest = MessageDigest.getInstance("SHA-256")
+            try {
+                FileOutputStream(target).use { output ->
+                    body.byteStream().use { input ->
+                        val buffer = ByteArray(8192)
+                        var bytesRead: Int
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                            digest.update(buffer, 0, bytesRead)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                target.delete()
+                throw PairingException(
+                    "Failed to save resource file ${target.name}: ${e.message}",
+                    PairingException.ErrorCode.DOWNLOAD_FAILED,
+                    e,
+                )
+            }
+            verifyChecksum(target, digest, expectedSha256)
+        }
+    }
+
+    private fun verifyChecksum(target: File, digest: MessageDigest, expectedSha256: String?) {
+        if (expectedSha256.isNullOrBlank()) return
+        val actual = digest.digest().joinToString("") { "%02x".format(it) }
+        if (!actual.equals(expectedSha256.trim(), ignoreCase = true)) {
+            target.delete()
             throw PairingException(
-                "Resource download failed: HTTP ${response.code} for ${target.name}",
+                "Checksum mismatch for ${target.name}",
                 PairingException.ErrorCode.DOWNLOAD_FAILED,
             )
         }
+    }
 
-        val body = response.body
-            ?: throw PairingException(
-                "Empty response body downloading ${target.name}",
+    private fun requireSafeSegment(value: String, what: String) {
+        if (value.isEmpty() || value == "." || value.contains("..") ||
+            value.contains('/') || value.contains('\\') || value.contains('\u0000')
+        ) {
+            throw PairingException(
+                "Unsafe $what in deployment",
                 PairingException.ErrorCode.DOWNLOAD_FAILED,
             )
+        }
+    }
 
-        try {
-            FileOutputStream(target).use { output ->
-                body.byteStream().use { input ->
-                    val buffer = ByteArray(8192)
-                    var bytesRead: Int
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            target.delete()
+    private fun requireUnder(base: File, child: File) {
+        val basePath = base.canonicalPath + File.separator
+        if (!child.canonicalPath.startsWith(basePath)) {
             throw PairingException(
-                "Failed to save resource file ${target.name}: ${e.message}",
+                "Deployment path escapes model directory",
                 PairingException.ErrorCode.DOWNLOAD_FAILED,
-                e,
             )
         }
     }
@@ -436,10 +479,13 @@ class PairingManager(
             else -> ".bin"
         }
 
+        requireSafeSegment(deployment.modelName, "model name")
+        requireSafeSegment(deployment.modelVersion, "model version")
         val modelFile = File(
             modelCacheDir,
             "pairing_${deployment.modelName}_${deployment.modelVersion}$extension",
         )
+        requireUnder(modelCacheDir, modelFile)
 
         Timber.d(
             "Downloading model from %s (expected size: %s bytes)",
@@ -451,38 +497,38 @@ class PairingManager(
             .url(deployment.downloadUrl)
             .build()
 
-        val response = downloadClient.newCall(request).execute()
+        downloadClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw PairingException(
+                    "Model download failed: HTTP ${response.code}",
+                    PairingException.ErrorCode.DOWNLOAD_FAILED,
+                )
+            }
 
-        if (!response.isSuccessful) {
-            throw PairingException(
-                "Model download failed: HTTP ${response.code}",
-                PairingException.ErrorCode.DOWNLOAD_FAILED,
-            )
-        }
+            val body = response.body
+                ?: throw PairingException(
+                    "Empty response body during model download",
+                    PairingException.ErrorCode.DOWNLOAD_FAILED,
+                )
 
-        val body = response.body
-            ?: throw PairingException(
-                "Empty response body during model download",
-                PairingException.ErrorCode.DOWNLOAD_FAILED,
-            )
-
-        try {
-            FileOutputStream(modelFile).use { output ->
-                body.byteStream().use { input ->
-                    val buffer = ByteArray(8192)
-                    var bytesRead: Int
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
+            try {
+                FileOutputStream(modelFile).use { output ->
+                    body.byteStream().use { input ->
+                        val buffer = ByteArray(8192)
+                        var bytesRead: Int
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                modelFile.delete()
+                throw PairingException(
+                    "Failed to save model file: ${e.message}",
+                    PairingException.ErrorCode.DOWNLOAD_FAILED,
+                    e,
+                )
             }
-        } catch (e: Exception) {
-            modelFile.delete()
-            throw PairingException(
-                "Failed to save model file: ${e.message}",
-                PairingException.ErrorCode.DOWNLOAD_FAILED,
-                e,
-            )
         }
 
         Timber.i("Model downloaded: %s (%d bytes)", modelFile.absolutePath, modelFile.length())
@@ -497,6 +543,7 @@ class PairingManager(
     private fun persistModel(modelFile: File, deployment: DeploymentInfo): File? {
         return try {
             val dir = File(modelPersistDir, "${deployment.modelName}/${deployment.modelVersion}")
+            requireUnder(modelPersistDir, dir)
             dir.mkdirs()
             val target = File(dir, modelFile.name)
             if (target.exists()) target.delete()

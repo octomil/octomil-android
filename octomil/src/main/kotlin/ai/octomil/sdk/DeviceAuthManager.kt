@@ -1,14 +1,16 @@
 package ai.octomil.sdk
 
+import ai.octomil.api.OctomilHttp
 import ai.octomil.errors.OctomilErrorCode
 import ai.octomil.errors.OctomilException
 import android.content.Context
 import android.util.Base64
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
@@ -82,7 +84,9 @@ class DeviceAuthManager internal constructor(
         val orgId: String,
         val deviceIdentifier: String,
         val scopes: List<String>,
-    )
+    ) {
+        override fun toString() = "DeviceTokenState(orgId=$orgId, deviceIdentifier=$deviceIdentifier, expiresAt=$expiresAt)"
+    }
 
     suspend fun bootstrap(
         bootstrapBearerToken: String,
@@ -112,20 +116,24 @@ class DeviceAuthManager internal constructor(
             state
         }
 
-    suspend fun refresh(): DeviceTokenState =
-        withContext(ioDispatcher) {
-            val current = stateStore.load() ?: throw OctomilException(OctomilErrorCode.AUTHENTICATION_FAILED, "No token state stored")
+    private val refreshMutex = Mutex()
 
-            val response =
-                transport.postJson(
-                    path = "/api/v1/device-auth/refresh",
-                    body = JSONObject().put("refresh_token", current.refreshToken),
-                    bearerToken = null,
-                    expectedStatusCodes = setOf(200),
-                )
-            val state = parseState(response)
-            stateStore.save(state)
-            state
+    suspend fun refresh(): DeviceTokenState =
+        refreshMutex.withLock {
+            withContext(ioDispatcher) {
+                val current = stateStore.load() ?: throw OctomilException(OctomilErrorCode.AUTHENTICATION_FAILED, "No token state stored")
+
+                val response =
+                    transport.postJson(
+                        path = "/api/v1/device-auth/refresh",
+                        body = JSONObject().put("refresh_token", current.refreshToken),
+                        bearerToken = null,
+                        expectedStatusCodes = setOf(200),
+                    )
+                val state = parseState(response)
+                stateStore.save(state)
+                state
+            }
         }
 
     suspend fun revoke(reason: String = "sdk_revoke") =
@@ -186,7 +194,7 @@ private class OkHttpDeviceAuthTransport(
     readTimeoutMs: Long = 60_000L,
     writeTimeoutMs: Long = 60_000L,
 ) : DeviceAuthTransport {
-    private val client = OkHttpClient.Builder()
+    private val client = OctomilHttp.newBuilder()
         .connectTimeout(connectTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
         .readTimeout(readTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
         .writeTimeout(writeTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
@@ -257,7 +265,12 @@ private class KeystorePrefsDeviceAuthStateStore(
 
     override fun load(): DeviceAuthManager.DeviceTokenState? {
         val encrypted = prefs.getString(storageKey(), null) ?: return null
-        val json = JSONObject(decrypt(encrypted))
+        val json = try {
+            JSONObject(decrypt(encrypted))
+        } catch (_: Exception) {
+            clear()
+            return null
+        }
         val scopesArray = json.optJSONArray("scopes") ?: JSONArray()
         val scopes = (0 until scopesArray.length()).map { scopesArray.getString(it) }
         return DeviceAuthManager.DeviceTokenState(

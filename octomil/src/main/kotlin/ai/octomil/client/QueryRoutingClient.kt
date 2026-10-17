@@ -1,5 +1,6 @@
 package ai.octomil.client
 
+import ai.octomil.api.OctomilHttp
 import android.content.Context
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -111,7 +112,7 @@ class PolicyClient(
     private val context: Context,
     private val apiBase: String,
     private val apiKey: String? = null,
-    private val httpClient: OkHttpClient = OkHttpClient.Builder()
+    private val httpClient: OkHttpClient = OctomilHttp.newBuilder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
         .build(),

@@ -56,6 +56,8 @@ sealed class AuthConfig {
     ) : AuthConfig() {
         override val token: String get() = apiKey
         override val authType: AuthType get() = AuthType.ORG_API_KEY
+
+        override fun toString() = "OrgApiKey(orgId=$orgId, serverUrl=$serverUrl)"
     }
 
     /**
@@ -75,5 +77,7 @@ sealed class AuthConfig {
         override val token: String get() = bootstrapToken
         override val orgId: String get() = ""
         override val authType: AuthType get() = AuthType.DEVICE_TOKEN
+
+        override fun toString() = "DeviceToken(deviceId=$deviceId, serverUrl=$serverUrl)"
     }
 }

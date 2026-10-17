@@ -37,6 +37,26 @@ jobs:
           test -n "${MAVEN_GPG_PRIVATE_KEY}" || { echo "Missing MAVEN_GPG_PRIVATE_KEY"; exit 1; }
           test -n "${MAVEN_GPG_PASSPHRASE}" || { echo "Missing MAVEN_GPG_PASSPHRASE"; exit 1; }
 
+      - name: Generate runtime read token
+        id: runtime-token
+        uses: actions/create-github-app-token@a8d616148505b5069dccd32f177bb87d7f39123b # v3.0.0
+        with:
+          app-id: ${{ secrets.VERSION_BOT_APP_ID }}
+          private-key: ${{ secrets.VERSION_BOT_PRIVATE_KEY }}
+          owner: octomil
+          repositories: octomil-runtime
+          permission-contents: read
+
+      - name: Build release AAR
+        env:
+          GH_TOKEN: ${{ steps.runtime-token.outputs.token }}
+        run: ./gradlew :octomil:assembleRelease --no-configuration-cache
+
+      - name: Verify runtime is bundled in AAR
+        run: |
+          unzip -l octomil/build/outputs/aar/octomil-release.aar | grep -q 'jni/.*/liboctomil-runtime\.so' \
+            || { echo "::error::liboctomil-runtime.so missing from AAR"; exit 1; }
+
       - name: Publish to Maven Central
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
