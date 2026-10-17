@@ -67,14 +67,14 @@ import kotlin.random.Random
  */
 object Octomil {
 
-    private var appContext: Context? = null
-    private var _catalog: ModelCatalogService? = null
-    private var _deviceContext: DeviceContext? = null
-    private var _manifest: AppManifest? = null
-    private var _monitoring: MonitoringConfig = MonitoringConfig()
-    private var _serverUrl: String = "https://api.octomil.com"
-    private var heartbeatJob: Job? = null
-    private var _control: ControlPlaneClient? = null
+    @Volatile private var appContext: Context? = null
+    @Volatile private var _catalog: ModelCatalogService? = null
+    @Volatile private var _deviceContext: DeviceContext? = null
+    @Volatile private var _manifest: AppManifest? = null
+    @Volatile private var _monitoring: MonitoringConfig = MonitoringConfig()
+    @Volatile private var _serverUrl: String = "https://api.octomil.com"
+    @Volatile private var heartbeatJob: Job? = null
+    @Volatile private var _control: ControlPlaneClient? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val benchmarkJson = Json {

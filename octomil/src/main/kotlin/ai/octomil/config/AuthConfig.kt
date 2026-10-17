@@ -75,9 +75,9 @@ sealed class AuthConfig {
         override val serverUrl: String = OctomilConfig.DEFAULT_SERVER_URL,
     ) : AuthConfig() {
         override val token: String get() = bootstrapToken
-
-        override fun toString() = "DeviceToken(deviceId=$deviceId, serverUrl=$serverUrl)"
         override val orgId: String get() = ""
         override val authType: AuthType get() = AuthType.DEVICE_TOKEN
+
+        override fun toString() = "DeviceToken(deviceId=$deviceId, serverUrl=$serverUrl)"
     }
 }
