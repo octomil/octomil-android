@@ -1,5 +1,6 @@
 package ai.octomil.runtime.planner
 
+import ai.octomil.api.OctomilHttp
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -133,7 +134,7 @@ class RuntimePlannerClient(
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
         internal fun defaultHttpClient(): OkHttpClient =
-            OkHttpClient.Builder()
+            OctomilHttp.newBuilder()
                 .connectTimeout(10, TimeUnit.SECONDS)
                 .readTimeout(10, TimeUnit.SECONDS)
                 .writeTimeout(10, TimeUnit.SECONDS)

@@ -1,5 +1,6 @@
 package ai.octomil.sdk
 
+import ai.octomil.api.OctomilHttp
 import ai.octomil.errors.OctomilErrorCode
 import ai.octomil.errors.OctomilException
 import android.content.Context
@@ -8,7 +9,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
@@ -186,7 +186,7 @@ private class OkHttpDeviceAuthTransport(
     readTimeoutMs: Long = 60_000L,
     writeTimeoutMs: Long = 60_000L,
 ) : DeviceAuthTransport {
-    private val client = OkHttpClient.Builder()
+    private val client = OctomilHttp.newBuilder()
         .connectTimeout(connectTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
         .readTimeout(readTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
         .writeTimeout(writeTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)

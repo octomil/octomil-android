@@ -37,6 +37,7 @@ object OctomilApiFactory {
      * @return Configured OctomilApi instance
      */
     fun create(config: OctomilConfig): OctomilApi {
+        OctomilHttp.configure(buildCertificatePinner(config))
         val okHttpClient = createOkHttpClient(config)
         val retrofit = createRetrofit(config, okHttpClient)
         return retrofit.create(OctomilApi::class.java)
@@ -53,7 +54,7 @@ object OctomilApiFactory {
      * @return Configured OctomilApi instance for registration.
      */
     fun createForRegistration(serverUrl: String, bearerToken: String): OctomilApi {
-        val okHttpClient = OkHttpClient.Builder()
+        val okHttpClient = OctomilHttp.newBuilder()
             .connectTimeout(30_000, TimeUnit.MILLISECONDS)
             .readTimeout(30_000, TimeUnit.MILLISECONDS)
             .writeTimeout(30_000, TimeUnit.MILLISECONDS)
@@ -82,8 +83,8 @@ object OctomilApiFactory {
      * Create OkHttp client with interceptors and timeouts.
      */
     private fun createOkHttpClient(config: OctomilConfig): OkHttpClient =
-        OkHttpClient
-            .Builder()
+        OctomilHttp
+            .newBuilder()
             .connectTimeout(config.connectionTimeoutMs, TimeUnit.MILLISECONDS)
             .readTimeout(config.readTimeoutMs, TimeUnit.MILLISECONDS)
             .writeTimeout(config.writeTimeoutMs, TimeUnit.MILLISECONDS)
@@ -94,9 +95,6 @@ object OctomilApiFactory {
                 if (config.debugMode) {
                     addInterceptor(createLoggingInterceptor())
                 }
-            }
-            .apply {
-                buildCertificatePinner(config)?.let { certificatePinner(it) }
             }
             .retryOnConnectionFailure(true)
             .build()

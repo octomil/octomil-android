@@ -1,5 +1,6 @@
 package ai.octomil.client
 
+import ai.octomil.api.OctomilHttp
 import ai.octomil.errors.OctomilErrorCode
 import ai.octomil.errors.fromHttpStatus
 import ai.octomil.errors.OctomilException
@@ -46,7 +47,7 @@ data class EmbeddingResult(
 class EmbeddingClient(
     private val serverUrl: String,
     private val apiKey: String,
-    private val httpClient: OkHttpClient = OkHttpClient.Builder()
+    private val httpClient: OkHttpClient = OctomilHttp.newBuilder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build(),

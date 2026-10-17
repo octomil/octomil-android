@@ -1,5 +1,6 @@
 package ai.octomil
 
+import ai.octomil.api.OctomilHttp
 import ai.octomil.speech.OctomilAudio
 import ai.octomil.chat.LLMRuntimeRegistry
 import ai.octomil.chat.OctomilChat
@@ -39,7 +40,6 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import timber.log.Timber
@@ -83,7 +83,7 @@ object Octomil {
     }
 
     private val benchmarkHttpClient by lazy {
-        OkHttpClient.Builder()
+        OctomilHttp.newBuilder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .writeTimeout(15, TimeUnit.SECONDS)

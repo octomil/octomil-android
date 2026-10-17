@@ -1,5 +1,6 @@
 package ai.octomil.wrapper
 
+import ai.octomil.api.OctomilHttp
 import ai.octomil.BuildConfig
 import ai.octomil.api.OctomilApi
 import ai.octomil.api.dto.ExportLogsServiceRequest
@@ -11,7 +12,6 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import org.tensorflow.lite.Interpreter
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -164,7 +164,7 @@ object Octomil {
             encodeDefaults = true
             explicitNulls = false
         }
-        val okHttp = OkHttpClient.Builder()
+        val okHttp = OctomilHttp.newBuilder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
