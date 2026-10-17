@@ -7,8 +7,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Optional: For background training sync -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application>
@@ -23,6 +23,15 @@
                 android:value="androidx.startup"
                 tools:node="remove" />
         </provider>
+
+        <service
+            android:name="ai.octomil.runtime.ModelKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="on_device_model_keep_alive" />
+        </service>
 
     </application>
 
