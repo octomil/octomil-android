@@ -314,7 +314,7 @@ class OctomilClient private constructor(
         }
     }
 
-    private fun setupBackgroundServices(serverId: String?) {
+    private suspend fun setupBackgroundServices(serverId: String?) {
         if (config.enableBackgroundSync) {
             syncManager.schedulePeriodicSync()
         }

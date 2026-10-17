@@ -35,7 +35,6 @@ import androidx.work.WorkManager
 import androidx.work.WorkRequest
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -502,7 +501,7 @@ class WorkManagerSync(
      * Policy is enforced based on server-side settings when available,
      * falling back to local config defaults.
      */
-    fun schedulePeriodicSync() {
+    suspend fun schedulePeriodicSync() {
         if (!config.enableBackgroundSync) {
             Timber.d("Background sync disabled")
             return
@@ -611,16 +610,14 @@ class WorkManagerSync(
         Timber.i("Cancelled all sync work")
     }
 
-    private fun buildConstraints(): Constraints {
+    private suspend fun buildConstraints(): Constraints {
         // Fetch device policy from server cache, fall back to local config
         val policy =
-            runBlocking {
-                try {
-                    storage.getDevicePolicy()
-                } catch (e: Exception) {
-                    Timber.w(e, "Failed to fetch cached device policy, using defaults")
-                    null
-                }
+            try {
+                storage.getDevicePolicy()
+            } catch (e: Exception) {
+                Timber.w(e, "Failed to fetch cached device policy, using defaults")
+                null
             }
 
         // Apply server policy if available, otherwise use local config
